@@ -1,12 +1,14 @@
 # Day26 Submission — Log Inspector MCP
 
-Bài nộp cá nhân cho **Day26: MCP Tools Integration**. Mục tiêu của server là biến một thao tác thường làm thủ công khi debug/training/deploy — mở log, `grep` keyword rồi `tail` các lỗi gần nhất — thành MCP tools để Claude Code tự khám phá và gọi.
+Bài nộp cá nhân cho **Day26: MCP Tools Integration**. Server biến một thao tác thường làm thủ công khi debug/training/deploy — mở log, `grep` keyword rồi `tail` các lỗi gần nhất — thành MCP tools để Claude Code tự khám phá và gọi.
 
 Bài làm đủ ba mức:
 
 - **Dễ:** MCP Server local qua `stdio` với 2 tools thực tế.
 - **Trung bình:** bản `Streamable HTTP` có Bearer-token authentication.
 - **Khó:** versioning thật cho `search_logs`, giữ client v1 hoạt động, thêm `server://info`, và client mới đọc metadata trước khi chọn tool.
+
+Implementation dùng **Python 3.10+** và **MCP Python SDK v2**.
 
 ## 1. Use case thực tế
 
@@ -33,7 +35,8 @@ submission/log-inspector-mcp/
 ├── data/
 │   └── sample.log
 └── tests/
-    └── test_core.py
+    ├── test_core.py
+    └── test_mcp_contract.py
 ```
 
 ## 3. MCP tools và input/output
@@ -116,11 +119,13 @@ cd submission/log-inspector-mcp
 
 ## 5. Chạy bài Dễ — stdio
 
-Test logic trước:
+Chạy toàn bộ automated tests trước:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+Kỳ vọng: **7 tests pass** — gồm business logic/path-safety và MCP contract tests cho discovery/tool call/resource.
 
 Chạy server trực tiếp:
 
@@ -191,10 +196,10 @@ export MCP_PORT=8000
 python server_http.py
 ```
 
-Endpoint:
+Endpoint mặc định:
 
 ```text
-http://localhost:8000/mcp
+http://127.0.0.1:8000/mcp
 ```
 
 Server bind `0.0.0.0` mặc định để có thể test từ máy khác trong LAN. Nếu chỉ muốn local:
@@ -202,6 +207,8 @@ Server bind `0.0.0.0` mặc định để có thể test từ máy khác trong L
 ```bash
 export MCP_HOST=127.0.0.1
 ```
+
+`TokenVerifier` kiểm tra Bearer token trực tiếp từ `MCP_AUTH_TOKEN`. `MCP_ISSUER_URL` mặc định chỉ dùng để công bố protected-resource metadata của demo; bài này không tự triển khai OAuth authorization server/token issuance.
 
 ### Token đúng
 
@@ -213,7 +220,7 @@ python client_v1.py
 python client_smart.py
 ```
 
-Kỳ vọng: initialize thành công và tool trả kết quả.
+Kỳ vọng: MCP initialize thành công và tool trả kết quả.
 
 ### Thiếu token
 
@@ -222,15 +229,13 @@ unset MCP_AUTH_TOKEN
 python client_v1.py
 ```
 
-Kỳ vọng: client dừng ngay và yêu cầu set token. Với MCP client gửi HTTP request không có `Authorization`, server auth từ chối request.
-
-Có thể kiểm tra lớp HTTP trực tiếp:
+Client demo dừng ngay vì không có credential. Để xác nhận **server** enforce auth, gọi trực tiếp không có `Authorization`:
 
 ```bash
-curl -i http://localhost:8000/mcp
+curl -i http://127.0.0.1:8000/mcp
 ```
 
-Kỳ vọng: `401` hoặc `403` trước khi request được vào tool.
+Kỳ vọng: `401 Unauthorized` trước khi request được vào tool.
 
 ### Token sai
 
@@ -241,7 +246,7 @@ export MCP_AUTH_TOKEN='wrong-token'
 python client_v1.py
 ```
 
-Kỳ vọng: MCP handshake bị từ chối bằng `401` hoặc `403`.
+Kỳ vọng: MCP handshake bị server từ chối bằng HTTP `401`.
 
 ### Đăng ký HTTP server với Claude Code
 
@@ -250,7 +255,7 @@ Không ghi token thật vào repository. Có thể add local config bằng lện
 ```bash
 claude mcp add --transport http --scope local \
   --header "Authorization: Bearer $MCP_AUTH_TOKEN" \
-  log-inspector-http http://localhost:8000/mcp
+  log-inspector-http http://127.0.0.1:8000/mcp
 ```
 
 Sau đó kiểm tra `claude mcp list` hoặc `/mcp`.
@@ -287,7 +292,7 @@ Cả hai server công bố resource `server://info` chứa:
 
 `client_smart.py` làm đúng flow:
 
-1. `session.read_resource("server://info")`.
+1. `client.read_resource("server://info")`.
 2. Parse metadata.
 3. Nếu có `search_logs_v2` → dùng v2.
 4. Nếu không → fallback `search_logs` v1.
@@ -306,7 +311,7 @@ python client_smart.py
 - [x] Tool đọc file thật, không trả dữ liệu hard-code.
 - [x] README mô tả use case, input/output, setup, Claude Code.
 - [x] Có sample data để reviewer chạy ngay.
-- [x] Có unit test cho business logic và path traversal.
+- [x] Có unit tests và MCP contract tests.
 - [x] Có bản Streamable HTTP.
 - [x] Có `TokenVerifier` dùng Bearer token từ environment.
 - [x] Có hướng dẫn test token đúng / sai / thiếu.
