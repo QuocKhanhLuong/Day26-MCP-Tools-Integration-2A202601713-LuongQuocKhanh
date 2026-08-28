@@ -1,0 +1,12 @@
+2026-08-28 08:00:01 INFO api server started on port 8000
+2026-08-28 08:01:14 INFO request_id=abc123 GET /health 200 4ms
+2026-08-28 08:02:07 WARNING gpu worker queue depth=12
+2026-08-28 08:03:22 ERROR trainer failed to load checkpoint: file not found
+2026-08-28 08:04:10 INFO request_id=abc124 POST /runs 202 18ms
+2026-08-28 08:05:31 ERROR database timeout after 3000ms
+2026-08-28 08:06:02 DEBUG retrying database connection attempt=2
+2026-08-28 08:06:44 INFO database connection restored
+2026-08-28 08:07:18 CRITICAL worker crashed: CUDA out of memory
+2026-08-28 08:08:09 WARN frame decoder latency above threshold
+2026-08-28 08:09:52 ERROR request_id=abc125 prediction artifact missing
+2026-08-28 08:10:33 INFO scheduled cleanup completed
