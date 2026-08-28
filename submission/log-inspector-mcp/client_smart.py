@@ -6,11 +6,11 @@ import asyncio
 import json
 import os
 
-import httpx
-from mcp import ClientSession
+import httpx2
+from mcp.client.client import Client
 from mcp.client.streamable_http import streamable_http_client
 
-SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8000/mcp")
+SERVER_URL = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp")
 
 
 async def main() -> None:
@@ -18,36 +18,34 @@ async def main() -> None:
     if not token:
         raise SystemExit("Set MCP_AUTH_TOKEN before running this client.")
 
-    async with httpx.AsyncClient(
-        headers={"Authorization": f"Bearer {token}"}
+    timeout = httpx2.Timeout(30.0, read=300.0)
+    async with httpx2.AsyncClient(
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=timeout,
+        follow_redirects=True,
     ) as http_client:
-        async with streamable_http_client(
-            SERVER_URL, http_client=http_client
-        ) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
+        transport = streamable_http_client(SERVER_URL, http_client=http_client)
+        async with Client(transport) as client:
+            info = await client.read_resource("server://info")
+            metadata = json.loads(info.contents[0].text)
+            tools = metadata.get("tools", {})
 
-                info = await session.read_resource("server://info")
-                metadata = json.loads(info.contents[0].text)
-                tools = metadata.get("tools", {})
+            print(
+                f"Server {metadata.get('name')} v{metadata.get('version')} "
+                f"capabilities={metadata.get('capabilities')}"
+            )
 
-                print(
-                    f"Server {metadata.get('name')} v{metadata.get('version')} "
-                    f"capabilities={metadata.get('capabilities')}"
-                )
-
-                if "search_logs_v2" in tools:
-                    tool_name = "search_logs_v2"
-                else:
-                    tool_name = "search_logs"
-
-                result = await session.call_tool(
-                    tool_name,
-                    {"keyword": "ERROR", "log_file": "sample.log", "limit": 5},
-                )
-                print(f"Selected tool: {tool_name}")
-                for item in result.content:
+            tool_name = "search_logs_v2" if "search_logs_v2" in tools else "search_logs"
+            result = await client.call_tool(
+                tool_name,
+                {"keyword": "ERROR", "log_file": "sample.log", "limit": 5},
+            )
+            print(f"Selected tool: {tool_name}")
+            for item in result.content:
+                if hasattr(item, "text"):
                     print(item.text)
+                else:
+                    print(item)
 
 
 if __name__ == "__main__":
