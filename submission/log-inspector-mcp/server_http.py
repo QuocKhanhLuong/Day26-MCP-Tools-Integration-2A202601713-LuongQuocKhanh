@@ -6,9 +6,11 @@ import json
 import os
 import secrets
 
+from pydantic import AnyHttpUrl
+
+from mcp.server import MCPServer
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
-from mcp.server.mcpserver import MCPServer
 
 from core import (
     get_recent_errors_v1,
@@ -19,11 +21,13 @@ from core import (
 
 PORT = int(os.getenv("MCP_PORT", "8000"))
 HOST = os.getenv("MCP_HOST", "0.0.0.0")
-PUBLIC_URL = os.getenv("MCP_PUBLIC_URL", f"http://localhost:{PORT}")
+PUBLIC_ORIGIN = os.getenv("MCP_PUBLIC_URL", f"http://127.0.0.1:{PORT}").rstrip("/")
+RESOURCE_URL = f"{PUBLIC_ORIGIN}/mcp"
+ISSUER_URL = os.getenv("MCP_ISSUER_URL", "https://auth.example.com")
 
 
 class EnvTokenVerifier(TokenVerifier):
-    """Verify one bearer token loaded only from the MCP_AUTH_TOKEN environment variable."""
+    """Verify one bearer token loaded only from MCP_AUTH_TOKEN."""
 
     async def verify_token(self, token: str) -> AccessToken | None:
         expected = os.getenv("MCP_AUTH_TOKEN")
@@ -40,8 +44,9 @@ mcp = MCPServer(
     "log-inspector-http",
     instructions="Authenticated Streamable HTTP log-inspection server.",
     auth=AuthSettings(
-        issuer_url=PUBLIC_URL,
-        resource_server_url=PUBLIC_URL,
+        issuer_url=AnyHttpUrl(ISSUER_URL),
+        resource_server_url=AnyHttpUrl(RESOURCE_URL),
+        required_scopes=["logs:read"],
     ),
     token_verifier=EnvTokenVerifier(),
 )
