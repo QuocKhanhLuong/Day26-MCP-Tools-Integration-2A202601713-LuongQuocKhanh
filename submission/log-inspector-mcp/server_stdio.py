@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
 from core import (
     get_recent_errors_v1,
@@ -13,7 +13,7 @@ from core import (
     server_metadata_json,
 )
 
-mcp = FastMCP(
+mcp = MCPServer(
     "log-inspector",
     instructions=(
         "Inspect local text logs under LOG_INSPECTOR_ROOT. "
